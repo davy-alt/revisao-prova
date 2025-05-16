@@ -387,7 +387,21 @@ app.path('/usuarios/:id/progresso/:cursoId', (request, response) => {
     const idInt = Number(id)
 
     try {
+        const data = fs.readFile(database_url, 'utf-8')
+        const db = JSON.parse(data)
 
+        const usuario = usuario.find((usuario) => usuario.id === idInt)
+        if(!usuario){
+          return  response.status(404).json({mensagem:"Usuario nao encontrado"})
+        }
+
+        let progressoAtual = usuario.progresso[cursoId] || 0
+        progressoAtual += 10
+
+        usuario.progresso[cursoId] = progressoAtual
+
+        fs.writeFile(database_url, JSON.stringify(data, null, 2))
+        response.status(200).json({mensagem:"Progresso atualizado com sucesso", progressoAtual})
         
     } catch (error) {
         console.log(error)
@@ -395,10 +409,82 @@ app.path('/usuarios/:id/progresso/:cursoId', (request, response) => {
     }
 })
 
-app.post('/', (request, response) => {
-    
+app.post('/cursos', (request, response) => {
+    try {
+        
+    } catch (error) {
+        console.log(error)
+        response.status(500).json({mensagem:"Internal server error"})
+    }
 })
 
+app.post("/cursos/:id/comentarios", async (req, res) => {
+    const { id } = req.params
+    const idInt = Number(id)
+    const {usuario_id, comentario, nota} = req.body
+
+    if(!usuario_id){
+        res.status(400).json({mensagem: "Campo do id do usuário é obrigatório"})
+        return
+    }
+    if(!comentario){
+        res.status(400).json({mensagem: "Campo de comentario é obrigatório"})
+        return
+    }
+    if(!nota){
+        res.status(400).json({mensagem: "Campo de nota é obrigatório"})
+        return
+    }
+
+    const novoComentario = {
+        usuario_id,
+        comentario,
+        nota
+    }
+
+    try {
+        const data = await fs.readFile(database_url, 'utf-8')
+        const db = await JSON.parse(data)
+        const curso = db.cursos.find((curso) => curso.id === idInt)
+
+        curso.comentarios.push(novoComentario)
+
+        await fs.writeFile(database_url, JSON.stringify(db, null, 2))
+        res.status(200).json({mensagem: "Comentário adicionado", curso})
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({mensagem: "Internal server error"})
+    }
+})
+
+app.post('/', (request, response) => {
+
+})
+
+app.delete("/cursos/sem-comentarios", async (req, res) => {
+    try {
+        const data = await fs.readFile(database_url, 'utf-8')
+        const db = await JSON.parse(data)
+        const cursos = db.cursos
+
+        const cursosSemComentarios = cursos.filter((curso) => curso.comentarios.length === 0)
+        if(!cursosSemComentarios){
+            res.status(404).json({mensagem: "Não há nenhum curso sem comentários"})
+            return
+        }
+        const idCursosSemComentarios = cursosSemComentarios.map((curso) => curso.id)
+        const indexCurso = cursos.findIndex((curso) => idCursosSemComentarios.find((id) => curso.id === id))
+
+        const cursosDeletados = cursos.splice(indexCurso, 2)[0]
+
+        await fs.writeFile(database_url, JSON.stringify(db, null, 2))
+
+        res.status(200).json({mensagem: "Cursos sem comentários deletados! "})
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({mensagem: "Internal server error"})
+    }
+})
 app.listen(PORT, () => {
     console.log(`Servidor iniciado na porta: ${PORT}`)
 })
